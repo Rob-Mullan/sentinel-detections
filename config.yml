@@ -1,0 +1,16 @@
+# Defaults applied to every Sigma rule unless the rule's x_sentinel block overrides them.
+
+# pySigma processing pipeline that maps Sigma fields to Sentinel tables.
+#   sentinel_asim  -> ASIM parsers (imProcessCreate, imNetworkSession, ...), source agnostic
+#   azure_monitor  -> SecurityEvent and other Azure Monitor tables
+#   microsoft_xdr  -> Defender XDR tables (DeviceProcessEvents, ...)
+pipeline: sentinel_asim
+
+frequency: PT1H          # how often the rule runs (ISO 8601 duration)
+period: PT1H             # how far back each run looks
+trigger_threshold: 0     # alert when result count is greater than this
+suppression: PT5H
+
+# Noise check: the PR comment flags a rule whose 14-day hit count is above this.
+noise_threshold: 50
+noise_lookback: P14D

@@ -1,0 +1,38 @@
+name: Deploy to production
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "rules/sigma/**"
+      - "rules/kql-native/**"
+      - "config.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Add required reviewers to this environment in repo Settings > Environments
+    # so every production deploy waits for an approval.
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python scripts/build.py
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID_DEPLOY }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - run: scripts/deploy.sh "${{ vars.PROD_RESOURCE_GROUP }}" "${{ vars.PROD_WORKSPACE_NAME }}"

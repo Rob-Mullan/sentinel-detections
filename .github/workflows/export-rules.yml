@@ -1,0 +1,29 @@
+name: Export existing rules
+
+# Run manually from the Actions tab. Exports the portal-built rules from the
+# production workspace and pushes them to the "exported-rules" branch.
+on:
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID_PR }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - run: scripts/export_rules.sh "${{ vars.AZURE_SUBSCRIPTION_ID }}" "${{ vars.PROD_RESOURCE_GROUP }}" "${{ vars.PROD_WORKSPACE_NAME }}"
+      - name: Push to exported-rules branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B exported-rules
+          git add rules/exported
+          git commit -m "Export existing Sentinel rules" || { echo "No changes"; exit 0; }
+          git push -f origin exported-rules

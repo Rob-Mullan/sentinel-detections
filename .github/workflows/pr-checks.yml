@@ -1,0 +1,86 @@
+name: PR checks
+
+on:
+  pull_request:
+    paths:
+      - "rules/sigma/**"
+      - "rules/kql-native/**"
+      - "tests/**"
+      - "scripts/**"
+      - "config.yml"
+      - "requirements.txt"
+      - ".github/workflows/pr-checks.yml"
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: Lint and convert
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Sigma lint
+        run: sigma check rules/sigma
+      - name: Convert to KQL and build ARM templates
+        run: python scripts/build.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: build/
+
+  sentinel:
+    name: Validate, test and deploy to test workspace
+    needs: static
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write        # OIDC login to Azure
+      contents: read
+      pull-requests: write   # post the results comment
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: build/
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID_PR }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Query validation, sample tests and noise check (read-only, prod data)
+        id: checks
+        run: python scripts/query_check.py --workspace-id "${{ vars.PROD_WORKSPACE_ID }}" --report build/query-report.md
+      - name: Deploy to test workspace
+        id: deploy
+        if: steps.checks.outcome == 'success'
+        run: scripts/deploy.sh "${{ vars.TEST_RESOURCE_GROUP }}" "${{ vars.TEST_WORKSPACE_NAME }}" "[TEST] "
+      - name: Post results on the PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            cat build/query-report.md 2>/dev/null || echo "Query checks did not run. See the workflow log."
+            echo
+            echo "**Deploy to test workspace:** ${{ steps.deploy.outcome || 'skipped' }}"
+            echo
+            echo "<details><summary>Generated KQL</summary>"
+            echo
+            for f in build/kql/*.kql; do echo "**$(basename "$f" .kql)**"; echo '```kusto'; cat "$f"; echo '```'; done
+            echo "</details>"
+          } > comment.md
+          cat comment.md >> "$GITHUB_STEP_SUMMARY"
+          gh pr comment "$PR" --edit-last --body-file comment.md || gh pr comment "$PR" --body-file comment.md

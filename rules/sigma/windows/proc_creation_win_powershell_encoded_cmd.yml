@@ -1,0 +1,36 @@
+title: Encoded PowerShell Command Line
+id: 4f2b6c1e-9a7d-4c3e-8b1a-2d5e6f7a8b9c
+status: test
+description: Detects PowerShell started with an encoded command, often used to hide malicious scripts.
+author: Rob
+date: 2026-10-10
+tags:
+  - attack.execution
+  - attack.t1059.001
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_img:
+    Image|endswith:
+      - '\powershell.exe'
+      - '\pwsh.exe'
+  selection_cli:
+    CommandLine|contains:
+      - ' -enc '
+      - ' -EncodedCommand '
+  condition: all of selection_*
+level: high
+falsepositives:
+  - Legitimate admin or deployment scripts that use encoded commands
+# Sentinel-specific settings. Everything here is optional; defaults live in config.yml.
+x_sentinel:
+  frequency: PT1H
+  period: PT1H
+  entities:
+    - type: Host
+      identifier: HostName
+      column: DvcHostname
+    - type: Account
+      identifier: Name
+      column: ActorUsername

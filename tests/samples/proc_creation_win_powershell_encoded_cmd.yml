@@ -1,0 +1,20 @@
+# Sample events for the matching rule in rules/sigma. Columns must cover every
+# column the query uses. The pipeline swaps these in for the rule's source table.
+match:
+  - TargetProcessName: 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+    TargetProcessCommandLine: 'powershell.exe -NoProfile -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQA'
+    DvcHostname: WS01
+    ActorUsername: alice
+  - TargetProcessName: 'C:\Program Files\PowerShell\7\pwsh.exe'
+    TargetProcessCommandLine: 'pwsh.exe -EncodedCommand SQBFAFgA'
+    DvcHostname: WS02
+    ActorUsername: bob
+nomatch:
+  - TargetProcessName: 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+    TargetProcessCommandLine: 'powershell.exe -File C:\Scripts\backup.ps1'
+    DvcHostname: SRV01
+    ActorUsername: svc_backup
+  - TargetProcessName: 'C:\Windows\System32\cmd.exe'
+    TargetProcessCommandLine: 'cmd.exe /c echo -enc test'
+    DvcHostname: WS01
+    ActorUsername: alice
